@@ -1,0 +1,73 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  
+  --color-macaron-pink: #FFD1DC;
+  --color-macaron-yellow: #FFF9DB;
+  --color-macaron-mint: #B2F2BB;
+  --color-macaron-purple: #E0C3FC;
+  --color-macaron-blue: #A5D8FF;
+  
+  --color-island-bg: #F0F4F8; /* 纯净极浅灰蓝 */
+  --color-island-text: #333333;
+  --color-on-surface-variant: #888888;
+
+  --radius-island-full: 9999px;
+  --radius-island-lg: 32px;
+}
+
+body {
+  background-color: var(--color-island-bg);
+  color: var(--color-island-text);
+  font-family: var(--font-sans);
+  min-height: 100vh;
+  margin: 0;
+  overflow: hidden; /* 防止滚动 */
+  user-select: none;
+}
+
+/* 动效准则：线性淡入淡出与缩放 */
+.fade-enter {
+  opacity: 0;
+}
+.fade-enter-active {
+  opacity: 1;
+  transition: opacity 0.4s linear;
+}
+.fade-exit {
+  opacity: 1;
+}
+.fade-exit-active {
+  opacity: 0;
+  transition: opacity 0.4s linear;
+}
+
+.scale-in {
+  animation: scale-in 0.4s linear forwards;
+}
+
+@keyframes scale-in {
+  from { transform: scale(0.95); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+@layer utilities {
+  .harmless-shadow {
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.03);
+  }
+  
+  .glass-minimal {
+    background: rgba(255, 255, 255, 0.6);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+  }
+}
+
+/* 极简无边框设计 */
+button {
+  border: none;
+  outline: none;
+  cursor: pointer;
+}
