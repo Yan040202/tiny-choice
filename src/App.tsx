@@ -17,6 +17,20 @@ import {
 } from 'lucide-react';
 import { appConfig, Category, SubCategory, OptionDetail } from './constants';
 
+// 丰富的安抚话语库
+const ANXIETY_COMFORTING_PHRASES = [
+  "别着急，慢慢来",
+  "相信命运的安排",
+  "深呼吸，一切都会好的",
+  "纠结的时间够啦，就这么定吧",
+  "你的直觉会帮你选的",
+  "放下纠结，享受当下",
+  "命运的齿轮已经转动啦",
+  "选什么都会很棒的，加油",
+  "相信你自己的选择",
+  "别让选择消耗你啦"
+];
+
 // --- Types ---
 type Page = 'hub' | 'primarySelect' | 'secondaryWheel' | 'result';
 
@@ -136,13 +150,21 @@ const PrimarySelectPage = ({ title, items, onSelect, onBack }: { title: string, 
   );
 };
 
-const CustomizableWheelPage = ({ subCategory, onResult, onBack }: { subCategory: SubCategory, onResult: (res: WeightedOption) => void, onBack: () => void }) => {
+const CustomizableWheelPage = ({ subCategory, onResult, onBack, onSpin, isAnxious }: { subCategory: SubCategory, onResult: (res: WeightedOption) => void, onBack: () => void, onSpin: () => void, isAnxious: boolean }) => {
   const [options, setOptions] = useState<WeightedOption[]>(
     (subCategory.options || []).map(opt => ({ ...opt, weight: 1 }))
   );
   const [rotation, setRotation] = useState(0);
   const [isSpinning, setIsSpinning] = useState(false);
   const [totalWeight, setTotalWeight] = useState(0);
+  const [comfortingPhrase, setComfortingPhrase] = useState<string>("别着急，慢慢来");
+
+  useEffect(() => {
+    if (isAnxious) {
+      const randomIndex = Math.floor(Math.random() * ANXIETY_COMFORTING_PHRASES.length);
+      setComfortingPhrase(ANXIETY_COMFORTING_PHRASES[randomIndex]);
+    }
+  }, [isAnxious]);
 
   useEffect(() => {
     const total = options.reduce((sum, opt) => sum + opt.weight, 0);
@@ -152,6 +174,7 @@ const CustomizableWheelPage = ({ subCategory, onResult, onBack }: { subCategory:
   const spin = () => {
     if (isSpinning) return;
     setIsSpinning(true);
+    onSpin();
     
     const spins = 8 + Math.floor(Math.random() * 5);
     const extraDegrees = Math.floor(Math.random() * 360);
@@ -224,6 +247,20 @@ const CustomizableWheelPage = ({ subCategory, onResult, onBack }: { subCategory:
       <div className="text-center mb-12">
         <h2 className="text-4xl font-black tracking-tighter mb-2">{subCategory.name}</h2>
         <p className="text-[10px] font-bold opacity-30 tracking-[0.4em] uppercase">Custom Decision Wheel</p>
+        
+        {/* 安抚模式提示 - 在转盘页直接显示 */}
+        {isAnxious && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-100/70 border border-purple-200/60"
+          >
+            <Sparkles size={16} className="text-purple-500/70" />
+            <span className="text-[11px] font-bold text-purple-800/70 tracking-widest uppercase">
+              {comfortingPhrase}
+            </span>
+          </motion.div>
+        )}
       </div>
 
       <div className="relative w-72 h-72 md:w-80 md:h-80 flex items-center justify-center shrink-0 mb-12">
@@ -312,16 +349,21 @@ const ResultPage = ({
   result, 
   categoryName, 
   subCategoryName, 
-  onRestart 
+  isAnxious,
+  onRestart,
+  onSpinAgain 
 }: { 
   result: WeightedOption | OptionDetail | string, 
   categoryName: string,
   subCategoryName: string,
-  onRestart: () => void 
+  isAnxious: boolean,
+  onRestart: () => void,
+  onSpinAgain: () => void 
 }) => {
   const [showCongrats, setShowCongrats] = useState(false);
   const [aiSuggestion, setAiSuggestion] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [aiMode, setAiMode] = useState<string | null>(null);
   
   const resultName = typeof result === 'string' ? result : result.name;
   const resultAttr = typeof result === 'string' ? null : (result as OptionDetail).attr;
@@ -337,11 +379,13 @@ const ResultPage = ({
           body: JSON.stringify({
             category: categoryName,
             subCategory: subCategoryName,
-            result: resultName
+            result: resultName,
+            isAnxious: isAnxious
           })
         });
         const data = await response.json();
         setAiSuggestion(data.suggestion);
+        setAiMode(data.mode);
       } catch (error) {
         console.error('Failed to fetch AI suggestion:', error);
       } finally {
@@ -350,7 +394,7 @@ const ResultPage = ({
     };
 
     fetchSuggestion();
-  }, [categoryName, subCategoryName, resultName]);
+  }, [categoryName, subCategoryName, resultName, isAnxious]);
 
   const handleDone = () => {
     setTimeout(() => {
@@ -400,13 +444,17 @@ const ResultPage = ({
               <motion.div 
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="mt-6 px-6 py-4 bg-yellow-50/50 rounded-2xl border border-yellow-100/50"
+                className={`mt-6 px-6 py-5 rounded-3xl border shadow-lg ${aiMode === 'high-expression' ? 'bg-purple-50/80 border-purple-200/60' : 'bg-yellow-50/50 border-yellow-100/50'}`}
               >
-                <div className="flex items-center gap-2 mb-2">
-                  <Sparkles size={14} className="text-yellow-600 opacity-60" />
-                  <span className="text-[10px] font-black text-yellow-700/40 tracking-widest uppercase">小决定 AI 建议</span>
+                <div className="flex items-center gap-2 mb-3">
+                  <Sparkles size={16} className={aiMode === 'high-expression' ? 'text-purple-500/70' : 'text-yellow-600/60'} />
+                  <div className="flex items-baseline gap-2">
+                    <span className={`text-[11px] font-black tracking-widest uppercase ${aiMode === 'high-expression' ? 'text-purple-800/50' : 'text-yellow-700/40'}`}>
+                      {aiMode === 'high-expression' ? '小决定 AI 暖心陪伴' : '小决定 AI 建议'}
+                    </span>
+                  </div>
                 </div>
-                <p className="text-sm font-medium text-yellow-900/70 leading-relaxed italic">
+                <p className={`text-base font-semibold leading-relaxed italic ${aiMode === 'high-expression' ? 'text-purple-900/85 font-[family-name:var(--font-soft)]' : 'text-yellow-900/70'}`}>
                   “{aiSuggestion}”
                 </p>
               </motion.div>
@@ -414,12 +462,21 @@ const ResultPage = ({
 
             <div className="w-full h-px bg-black/5 my-10" />
 
-            <button 
-              onClick={handleDone}
-              className="w-full py-6 rounded-full bg-black text-white font-bold tracking-[0.2em] shadow-xl hover:scale-[1.02] active:scale-95 transition-all text-sm uppercase"
-            >
-              就这么办
-            </button>
+            <div className="w-full space-y-4">
+              <button 
+                onClick={onSpinAgain}
+                className="w-full py-4 rounded-full bg-yellow-100 text-yellow-800 font-bold tracking-[0.2em] shadow-lg hover:scale-[1.01] active:scale-95 transition-all text-sm uppercase border border-yellow-200"
+              >
+                再转一次
+              </button>
+
+              <button 
+                onClick={handleDone}
+                className="w-full py-6 rounded-full bg-black text-white font-bold tracking-[0.2em] shadow-xl hover:scale-[1.02] active:scale-95 transition-all text-sm uppercase"
+              >
+                就这么办
+              </button>
+            </div>
             
             <button onClick={onRestart} className="mt-8 text-[11px] font-black tracking-widest opacity-20 hover:opacity-100 hover:text-black transition-all">
               回到岛屿
@@ -464,6 +521,25 @@ export default function App() {
   const [subCategory, setSubCategory] = useState<SubCategory | null>(null);
   const [result, setResult] = useState<WeightedOption | OptionDetail | string | null>(null);
   const [bgColor, setBgColor] = useState('var(--color-island-bg)');
+  const [spinCount, setSpinCount] = useState(0);
+  const [isAnxious, setIsAnxious] = useState(false);
+
+  const recordSpin = () => {
+    setSpinCount(prev => {
+      const newCount = prev + 1;
+      console.log('Spin count:', newCount);
+      if (newCount >= 3) {
+        setIsAnxious(true);
+        console.log('Anxious mode activated!');
+      }
+      return newCount;
+    });
+  };
+
+  const spinAgain = () => {
+    setResult(null);
+    setPage('secondaryWheel');
+  };
 
   const reset = () => {
     setPage('hub');
@@ -472,6 +548,8 @@ export default function App() {
     setSubCategory(null);
     setResult(null);
     setBgColor('var(--color-island-bg)');
+    setIsAnxious(false);
+    setSpinCount(0);
   };
 
   return (
@@ -523,6 +601,8 @@ export default function App() {
             <CustomizableWheelPage 
               subCategory={subCategory} 
               onBack={() => setPage('primarySelect')}
+              onSpin={recordSpin}
+              isAnxious={isAnxious}
               onResult={(res) => {
                 setResult(res);
                 setPage('result');
@@ -535,7 +615,9 @@ export default function App() {
               result={result} 
               categoryName={category?.name || ''}
               subCategoryName={subCategory?.name || drillDownSub?.name || ''}
+              isAnxious={isAnxious}
               onRestart={reset} 
+              onSpinAgain={spinAgain}
             />
           )}
         </motion.div>

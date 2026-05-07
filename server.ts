@@ -6,7 +6,7 @@ import OpenAI from 'openai';
 dotenv.config();
 
 const app = express();
-const port = 3001;
+const port = 3002;
 
 app.use(express.json());
 
@@ -63,30 +63,60 @@ const MOCK_SUGGESTIONS: Record<string, string[]> = {
 
 app.post('/api/suggest', async (req, res) => {
   try {
-    const { category, subCategory, result } = req.body;
+    const { category, subCategory, result, isAnxious } = req.body;
     
-    const prompt = `
-      用户在“小决定”应用中做出了一个选择。
-      大类别：${category}
-      小类别：${subCategory}
-      决定结果：${result}
-      
-      请根据这个结果，给出一个有趣、幽默或者有启发性的简短建议或评论（30字以内）。
-      如果是食物，可以评价一下热量或口味；如果是心理建议，可以给点鼓励。
-      语气要亲切、现代。
-    `;
+    // 双层模型策略：根据焦虑信号 (isAnxious) 选择不同的 Prompt 和模型
+    let prompt: string;
+    let useHighExpressionModel: boolean = isAnxious || false;
 
-    // 优先尝试 DeepSeek
+    if (useHighExpressionModel) {
+      // 焦虑模式：深度安抚，高共情力文案
+      prompt = `
+        用户在“小决定”应用中面临决策困境，表现出焦虑情绪（连续多次转动转盘）。
+        大类别：${category}
+        小类别：${subCategory}
+        最终结果：${result}
+        
+        请扮演一个善解人意的心理陪伴者，用温暖、有共情力的语言安抚用户。
+        告诉用户这个选择很棒，给他/她信心。
+        
+        要求：
+        1. 每次的表达都不一样，不要重复之前的话术
+        2. 可以用不同的风格：温柔的、幽默的、鸡汤的、亲切的
+        3. 用中文，控制在60字以内，语气要柔软且有力量
+        4. 直接说建议，不要说开场白
+      `;
+    } else {
+      // 日常模式：幽默短句，快速响应
+      prompt = `
+        用户在“小决定”应用中做出了一个选择。
+        大类别：${category}
+        小类别：${subCategory}
+        决定结果：${result}
+        
+        请根据这个结果，给出一个有趣、幽默或者有启发性的简短建议或评论（30字以内）。
+        如果是食物，可以评价一下热量或口味；如果是心理建议，可以给点鼓励。
+        语气要亲切、现代，每次表达都不一样。
+      `;
+    }
+
+    // 优先尝试 DeepSeek (轻量/高表现力都用这个，通过 Prompt 区分)
     if (deepseekClient) {
       const response = await deepseekClient.chat.completions.create({
         model: "deepseek-chat",
         messages: [
-          { role: "system", content: "你是一个幽默、亲切、现代的小助手。" },
+          { role: "system", content: useHighExpressionModel 
+            ? "你是一个温暖、有共情力的心理陪伴者，擅长安抚焦虑情绪。" 
+            : "你是一个幽默、亲切、现代的小助手。" 
+          },
           { role: "user", content: prompt }
         ],
         max_tokens: 100
       });
-      return res.json({ suggestion: response.choices[0].message.content?.trim() || "决定得不错！" });
+      return res.json({ 
+        suggestion: response.choices[0].message.content?.trim() || "决定得不错！",
+        mode: useHighExpressionModel ? "high-expression" : "daily"
+      });
     }
 
     // 其次尝试 Gemini
@@ -95,13 +125,19 @@ app.post('/api/suggest', async (req, res) => {
         model: "gemini-2.0-flash",
         contents: prompt
       });
-      return res.json({ suggestion: result_ai.text?.trim() || "决定得不错！" });
+      return res.json({ 
+        suggestion: result_ai.text?.trim() || "决定得不错！",
+        mode: useHighExpressionModel ? "high-expression" : "daily"
+      });
     }
 
     // 如果都没有配置 API KEY，使用本地兜底逻辑
     const suggestions = MOCK_SUGGESTIONS[category] || MOCK_SUGGESTIONS['default'];
     const randomSuggestion = suggestions[Math.floor(Math.random() * suggestions.length)];
-    res.json({ suggestion: `[本地建议] ${randomSuggestion}` });
+    res.json({ 
+      suggestion: `[本地建议] ${randomSuggestion}`,
+      mode: "fallback"
+    });
   } catch (error) {
     console.error('AI Suggestion Error:', error);
     res.status(500).json({ error: 'Failed to get AI suggestion' });
